@@ -7,10 +7,12 @@ var gulp = require('gulp'),
     postcss = require('gulp-postcss');
 
 var resources = {
-    daux_blue:{source: "resources/themes/daux-blue/less/theme.less", dest: "resources/themes/daux-blue/css/"},
-    daux_green:{source: "resources/themes/daux-green/less/theme.less", dest: "resources/themes/daux-green/css/"},
-    daux_navy:{source: "resources/themes/daux-navy/less/theme.less", dest: "resources/themes/daux-navy/css/"},
-    daux_red:{source: "resources/themes/daux-red/less/theme.less", dest: "resources/themes/daux-red/css/"}
+    daux:{source: "themes/daux/less/theme.less", dest: "themes/daux/css/"},
+    daux_blue:{source: "themes/daux/less/theme-blue.less", dest: "themes/daux/css/"},
+    daux_green:{source: "themes/daux/less/theme-green.less", dest: "themes/daux/css/"},
+    daux_navy:{source: "themes/daux/less/theme-navy.less", dest: "themes/daux/css/"},
+    daux_red:{source: "themes/daux/less/theme-red.less", dest: "themes/daux/css/"},
+    daux_singlepage:{source: "themes/daux_singlepage/less/main.less", dest: "themes/daux_singlepage/css/"}
 };
 
 var unusedRules = [
@@ -94,7 +96,7 @@ function removeUnusedRules(rules) {
     var regexes = prepare_rules(rules);
 
     return function(css) {
-        css.eachRule(function (rule) {
+        css.walkRules(function (rule) {
             var removedSome = false,
                 selectors = rule.selectors,
                 i;
@@ -109,7 +111,7 @@ function removeUnusedRules(rules) {
 
             if(removedSome) {
                 if (selectors.length == 0) {
-                    rule.removeSelf();
+                    rule.remove();
                 } else {
                     rule.selectors = selectors;
                 }
@@ -124,13 +126,21 @@ function removeUnusedRules(rules) {
 
 function createTask(source, dest) {
     return function() {
+        var nano_options = {
+            safe: true,           // Disable dangerous optimisations
+            filterPlugins: false, // This does very weird stuff
+            autoprefixer: {
+                add: true,                // Add needed prefixes
+                remove: true              // Remove unnecessary prefixes
+            }
+        };
+
         return gulp.src(source)
+            .pipe(plumber())
             .pipe(less())
             .pipe(postcss([
                 removeUnusedRules(unusedRules),
-                require('csswring')({
-                    preserveHacks: true
-                })
+                require('cssnano')(nano_options)
             ]))
             .pipe(rename({suffix: '.min'}))
             .pipe(gulp.dest(dest));
@@ -151,7 +161,7 @@ gulp.task("styles", style_tasks);
 gulp.task('watch', function() {
 
     // Watch .less files
-    gulp.watch('resources/themes/**/*.less', ['styles']);
+    gulp.watch('themes/daux/less/**/*.less', ['styles']);
 
 });
 

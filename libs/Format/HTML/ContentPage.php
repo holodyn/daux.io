@@ -7,18 +7,26 @@ class ContentPage extends \Todaymade\Daux\Format\Base\ContentPage
     private $language;
     private $homepage;
 
+    private function isHomepage()
+    {
+        if (array_key_exists('auto_landing', $this->params['html']) && !$this->params['html']['auto_landing']) {
+            return false;
+        }
+
+        if ($this->file->getParent()->getIndexPage() != $this->file) {
+            return false;
+        }
+
+        if ($this->params['multilanguage']) {
+            return ($this->file->getParent()->getParent() instanceof Root);
+        }
+
+        return ($this->file->getParent() instanceof Root);
+    }
+
     private function initialize()
     {
-        $this->homepage = false;
-        if ($this->file->getParent()->getIndexPage() == $this->file) {
-            if ($this->params['multilanguage']) {
-                if ($this->file->getParent()->getParent() instanceof Root) {
-                    $this->homepage = true;
-                }
-            } elseif ($this->file->getParent() instanceof Root) {
-                $this->homepage = true;
-            }
-        }
+        $this->homepage = $this->isHomepage();
 
         $this->language = '';
         if ($this->params['multilanguage'] && count($this->file->getParents())) {
@@ -41,7 +49,7 @@ class ContentPage extends \Todaymade\Daux\Format\Base\ContentPage
         if (!empty($parents)) {
             foreach ($parents as $node) {
                 $page = $node->getIndexPage() ?: $node->getFirstPage();
-                $breadcrumb_trail[$node->getTitle()] = $page? $page->getUrl() : '';
+                $breadcrumb_trail[$node->getTitle()] = $page ? $page->getUrl() : '';
             }
         }
         return $breadcrumb_trail;
@@ -74,7 +82,9 @@ class ContentPage extends \Todaymade\Daux\Format\Base\ContentPage
             'markdown' => $this->content,
             'request' => $params['request'],
             'content' => $this->convertPage($this->content),
-            'breadcrumbs' => $params['html']['breadcrumbs']
+            'breadcrumbs' => $params['html']['breadcrumbs'],
+            'prev' => $this->file->getPrevious(),
+            'next' => $this->file->getNext(),
         ];
 
         if ($page['breadcrumbs']) {
@@ -82,7 +92,9 @@ class ContentPage extends \Todaymade\Daux\Format\Base\ContentPage
             $page['breadcrumb_separator'] = $params['html']['breadcrumb_separator'];
         }
 
+        $context = ['page' => $page, 'params' => $params];
+
         $template = new Template($params['templates'], $params['theme']['templates']);
-        return $template->render($this->homepage ? 'theme::home' : 'theme::content', ['page' => $page, 'params' => $params]);
+        return $template->render($this->homepage ? 'theme::home' : 'theme::content', $context);
     }
 }

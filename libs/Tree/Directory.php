@@ -1,5 +1,7 @@
 <?php namespace Todaymade\Daux\Tree;
 
+use Todaymade\Daux\Daux;
+
 class Directory extends Entry
 {
     /** @var Config */
@@ -13,7 +15,69 @@ class Directory extends Entry
 
     public function sort()
     {
-        uasort($this->children, array($this, 'compareEntries'));
+        // Separate the values into buckets to sort them separately
+        $buckets = [
+            'index' => [],
+            'numeric' => [],
+            'normal' => [],
+            'down_numeric' => [],
+            'down' => [],
+        ];
+
+        foreach ($this->children as $key => $entry) {
+            $name = $entry->getName();
+
+            if ($name == 'index' || $name == '_index') {
+                $buckets['index'][$key] = $entry;
+                continue;
+            }
+
+            if ($name[0] == "-") {
+                if (is_numeric($name[1])) {
+                    $exploded = explode("_", $name);
+                    $buckets['down_numeric'][abs(substr($exploded[0], 1))][$key] = $entry;
+                    continue;
+                }
+
+                $buckets['down'][$key] = $entry;
+                continue;
+            }
+
+            if (is_numeric($name[0])) {
+                $exploded = explode("_", $name);
+                $buckets['numeric'][abs($exploded[0])][$key] = $entry;
+                continue;
+            }
+
+            $buckets['normal'][$key] = $entry;
+        }
+
+        $final = [];
+        foreach ($buckets as $name => $bucket) {
+            if ($name == 'numeric' || $name == 'down_numeric') {
+                ksort($bucket);
+                foreach ($bucket as $sub_bucket) {
+                    $final = $this->sortBucket($sub_bucket, $final);
+                }
+            } else {
+                $final = $this->sortBucket($bucket, $final);
+            }
+        }
+
+        $this->children = $final;
+    }
+
+    private function sortBucket($bucket, $final)
+    {
+        uasort($bucket, function(Entry $a, Entry $b) {
+            return strcasecmp($a->getName(), $b->getName());
+        });
+
+        foreach ($bucket as $key => $value) {
+            $final[$key] = $value;
+        }
+
+        return $final;
     }
 
     /**
@@ -83,11 +147,11 @@ class Directory extends Entry
         /*
           If the inherit_index flag is set, then we seek child content
          */
-        if(
-          !empty($this->getConfig()['live']['inherit_index'])
-          && $first_page = $this->seekFirstPage()
-          ){
-          return $first_page;
+        if ($this->getConfig()['mode'] == Daux::LIVE_MODE
+            && !empty($this->getConfig()['live']['inherit_index'])
+            && $first_page = $this->seekFirstPage()
+        ) {
+            return $first_page;
         }
 
         return null;
@@ -97,25 +161,25 @@ class Directory extends Entry
      * Seek the first available page from descendants
      * @return Content|null
      */
-    public function seekFirstPage(){
-      if( $this instanceof Directory ){
-        $index_key = $this->getConfig()['index_key'];
-        if (isset($this->children[$index_key])) {
-          return $this->children[$index_key];
+    public function seekFirstPage()
+    {
+        if ($this instanceof Directory) {
+            $index_key = $this->getConfig()['index_key'];
+            if (isset($this->children[$index_key])) {
+                return $this->children[$index_key];
+            }
+            foreach ($this->children as $node_key => $node) {
+                if ($node instanceof Content) {
+                    return $node;
+                }
+                if ($node instanceof Directory
+                && strpos($node->getUri(), '.') !== 0
+                && $childNode = $node->seekFirstPage() ) {
+                    return $childNode;
+                }
+            }
         }
-        foreach( $this->children AS $node_key => $node ){
-          if( $node instanceof Content ){
-            return $node;
-          }
-          if(
-            $node instanceof Directory
-            && strpos($node->getUri(), '.') !== 0
-            && $childNode = $node->seekFirstPage() ){
-            return $childNode;
-          }
-        }
-      }
-      return null;
+        return null;
     }
 
     /**
@@ -178,51 +242,6 @@ class Directory extends Entry
         }
 
         return false;
-    }
-
-    private function compareEntries($a, $b)
-    {
-        $name_a = explode('_', $a->name);
-        $name_b = explode('_', $b->name);
-        if (is_numeric($name_a[0])) {
-            $a = intval($name_a[0]);
-            if (is_numeric($name_b[0])) {
-                $b = intval($name_b[0]);
-                if (($a >= 0) == ($b >= 0)) {
-                    $a = abs($a);
-                    $b = abs($b);
-                    if ($a == $b) {
-                        return (strcasecmp($name_a[1], $name_b[1]));
-                    }
-                    return ($a > $b) ? 1 : -1;
-                }
-                return ($a >= 0) ? -1 : 1;
-            }
-            $t = $name_b[0];
-            if ($t && $t[0] === '-') {
-                return -1;
-            }
-            return ($a < 0) ? 1 : -1;
-        } else {
-            if (is_numeric($name_b[0])) {
-                $b = intval($name_b[0]);
-                if ($b >= 0) {
-                    return 1;
-                }
-                $t = $name_a[0];
-                if ($t && $t[0] === '-') {
-                    return 1;
-                }
-                return ($b >= 0) ? 1 : -1;
-            }
-            $p = $name_a[0];
-            $q = $name_b[0];
-            if (($p && $p[0] === '-') == ($q && $q[0] === '-')) {
-                return strcasecmp($p, $q);
-            } else {
-                return ($p[0] === '-') ? 1 : -1;
-            }
-        }
     }
 
     public function dump()

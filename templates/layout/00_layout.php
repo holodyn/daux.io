@@ -27,7 +27,7 @@
     <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
 </head>
-<body>
+<body class="<?= $params['html']['float'] ? 'with-float' : ''; ?>">
     <?= $this->section('content'); ?>
 
     <?php
@@ -41,14 +41,10 @@
 
 
     <!-- jQuery -->
-    <?php
-    if ($params['theme']['require-jquery']) {
-        echo '<script src="' . $base_url . 'resources/js/jquery-1.11.3.min.js' . '"></script>';
-    }
-    ?>
+    <?= '<script src="' . $base_url . 'themes/daux/js/jquery-1.11.3.min.js' . '"></script>' ?>
 
     <!-- hightlight.js -->
-    <script src="<?= $base_url; ?>resources/js/highlight.min.js"></script>
+    <script src="<?= $base_url; ?>themes/daux/js/highlight.pack.js"></script>
     <script>hljs.initHighlightingOnLoad();</script>
 
     <!-- JS -->
@@ -56,6 +52,6 @@
         echo '<script src="' . $js . '"></script>';
     } ?>
 
-    <script src="<?= $base_url; ?>resources/js/daux.js"></script>
+    <script src="<?= $base_url; ?>themes/daux/js/daux.js"></script>
 </body>
 </html>

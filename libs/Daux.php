@@ -3,6 +3,8 @@
 use Symfony\Component\Console\Output\NullOutput;
 use Todaymade\Daux\ContentTypes\ContentTypeHandler;
 use Todaymade\Daux\Tree\Builder;
+use Todaymade\Daux\Tree\Content;
+use Todaymade\Daux\Tree\Directory;
 use Todaymade\Daux\Tree\Root;
 
 class Daux
@@ -29,6 +31,9 @@ class Daux
 
     /** @var string */
     private $docs_path;
+
+    /** @var string */
+    private $themes_path;
 
     /** @var Processor */
     protected $processor;
@@ -95,6 +100,18 @@ class Daux
         }
     }
 
+    public function setThemesPath($path)
+    {
+        $this->themes_path = $path;
+        if (!is_dir($this->themes_path) &&
+            !is_dir($this->themes_path = $this->local_base . DIRECTORY_SEPARATOR . $this->themes_path)
+        ) {
+            throw new Exception('The Themes directory does not exist. Check the path again : ' . $this->themes_path);
+        }
+        $this->options['themes_path'] = $this->themes_path;
+        $this->options['templates'] = 'templates';
+    }
+
     public function setDocumentationPath($path)
     {
         $this->docs_path = $path;
@@ -103,6 +120,8 @@ class Daux
         ) {
             throw new Exception('The Docs directory does not exist. Check the path again : ' . $this->docs_path);
         }
+
+        $this->options['docs_path'] = $this->docs_path;
     }
 
     /**
@@ -161,6 +180,42 @@ class Daux
                 $this->tree->getEntries()[$key]->setTitle($node);
             }
         }
+
+        // Enhance the tree with processors
+        $this->getProcessor()->manipulateTree($this->tree);
+
+        // Sort the tree one last time before it is finalized
+        $this->sortTree($this->tree);
+
+        $this->finalizeTree($this->tree);
+    }
+
+    public function sortTree(Directory $current)
+    {
+        $current->sort();
+        foreach ($current->getEntries() as $entry) {
+            if ($entry instanceof Directory) {
+                $this->sortTree($entry);
+            }
+        }
+    }
+
+    public function finalizeTree(Directory $current, $prev = null)
+    {
+        foreach ($current->getEntries() as $entry) {
+            if ($entry instanceof Directory) {
+                $prev = $this->finalizeTree($entry, $prev);
+            } elseif ($entry instanceof Content) {
+                if ($prev) {
+                    $prev->setNext($entry);
+                    $entry->setPrevious($prev);
+                }
+
+                $prev = $entry;
+            }
+        }
+
+        return $prev;
     }
 
     /**
@@ -177,7 +232,8 @@ class Daux
                 'mode' => $this->mode,
                 'local_base' => $this->local_base,
                 'docs_path' => $this->docs_path,
-                'templates' => $this->internal_base . DIRECTORY_SEPARATOR . 'templates',
+                'themes_path' => $this->themes_path,
+                'templates' => 'templates'
             ];
             $this->options->conservativeMerge($default);
 
@@ -232,6 +288,7 @@ class Daux
     {
         $default = [
             'confluence' => '\Todaymade\Daux\Format\Confluence\Generator',
+            'html-file' => '\Todaymade\Daux\Format\HTMLFile\Generator',
             'html' => '\Todaymade\Daux\Format\HTML\Generator',
         ];
 

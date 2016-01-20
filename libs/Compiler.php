@@ -54,12 +54,14 @@ class Compiler
             ->ignoreVCS(true)
             ->exclude('Tests')
             ->in(__DIR__ . '/../vendor/symfony/console')
+            ->in(__DIR__ . '/../vendor/symfony/polyfill-mbstring')
             ->in(__DIR__ . '/../vendor/guzzlehttp/guzzle/src/')
             ->in(__DIR__ . '/../vendor/guzzlehttp/ringphp/src/')
             ->in(__DIR__ . '/../vendor/guzzlehttp/streams/src/')
             ->in(__DIR__ . '/../vendor/league/commonmark/src/')
             ->in(__DIR__ . '/../vendor/league/plates/src/')
-            ->in(__DIR__ . '/../vendor/react/promise/src/');
+            ->in(__DIR__ . '/../vendor/react/promise/src/')
+            ->in(__DIR__ . '/../vendor/webuni/commonmark-table-extension/src/');
 
         foreach ($finder as $file) {
             $this->addFile($phar, $file);
@@ -75,6 +77,8 @@ class Compiler
         $phar->stopBuffering();
 
         $this->addFile($phar, new \SplFileInfo(__DIR__ . '/../LICENSE'), false);
+
+        chmod($pharFile, 0775);
 
         unset($phar);
     }

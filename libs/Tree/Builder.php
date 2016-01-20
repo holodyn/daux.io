@@ -1,10 +1,55 @@
 <?php namespace Todaymade\Daux\Tree;
 
+use RuntimeException;
+use SplFileInfo;
 use Todaymade\Daux\Daux;
 use Todaymade\Daux\DauxHelper;
 
 class Builder
 {
+    protected static $IGNORED = [
+        // Popular VCS Systems
+        '.svn', '_svn', 'CVS', '_darcs', '.arch-params', '.monotone', '.bzr', '.git', '.hg',
+
+        // Operating system files
+        '.DS_Store', 'Thumbs.db',
+    ];
+
+    protected static function isIgnored(\SplFileInfo $file, $ignore)
+    {
+        if (in_array($file->getFilename(), static::$IGNORED)) {
+            return true;
+        }
+
+        if ($file->isDir() && in_array($file->getFilename(), $ignore['folders'])) {
+            return true;
+        }
+
+        if (!$file->isDir() && in_array($file->getFilename(), $ignore['files'])) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get name for a file
+     *
+     * @param string $path
+     * @return string
+     */
+    protected static function getName($path)
+    {
+        // ['dir' => 1, 'basename' => 2, 'filename' => 3, 'extension' => 5]
+        preg_match('%^(.*?)[\\\\/]*(([^/\\\\]*?)(\.([^\.\\\\/]+?)|))[\\\\/\.]*$%im', $path, $m);
+
+        if (!isset($m[3])) {
+            throw new RuntimeException("Name not found");
+        }
+
+        return $m[3];
+    }
+
     /**
      * Build the initial tree
      *
@@ -13,7 +58,7 @@ class Builder
      */
     public static function build($node, $ignore)
     {
-        if (!$dh = opendir($node->getPath())) {
+        if (($it = new \FilesystemIterator($node->getPath())) == false) {
             return;
         }
 
@@ -22,21 +67,13 @@ class Builder
             $ignore['files'][] = 'config.json';
         }
 
-        while (($file = readdir($dh)) !== false) {
-            if ($file == '.' || $file == '..') {
+        /** @var \SplFileInfo $file */
+        foreach ($it as $file) {
+            if (static::isIgnored($file, $ignore)) {
                 continue;
             }
 
-            $path = $node->getPath() . DIRECTORY_SEPARATOR . $file;
-
-            if (is_dir($path) && in_array($file, $ignore['folders'])) {
-                continue;
-            }
-            if (!is_dir($path) && in_array($file, $ignore['files'])) {
-                continue;
-            }
-
-            if (is_dir($path)) {
+            if ($file->isDir()) {
 
                 /**
                  * Load Configuration
@@ -46,7 +83,7 @@ class Builder
                 /**
                  * Load directory specific overrides
                  */
-                $config_override_file = $path . DIRECTORY_SEPARATOR . 'config.json';
+                $config_override_file = $file->getPath() . DIRECTORY_SEPARATOR . 'config.json';
                 if( is_readable($config_override_file) ){
                   $config_overrides = json_decode(file_get_contents($config_override_file), true);
                   if (!isset($config_overrides)) {
@@ -69,9 +106,9 @@ class Builder
                 /*
                   Initialize Directory
                  */
-                $new = new Directory($node, static::removeSortingInformations(static::getFilename($path)), $path);
-                $new->setName(DauxHelper::pathinfo($path)['filename']);
-                $new->setTitle(static::removeSortingInformations($new->getName(), ' '));
+                $new = new Directory($node, static::removeSortingInformations($file->getFilename()), $file);
+                $new->setName(static::getName($file->getPathName()));
+                $new->setTitle(str_replace('_', ' ', static::removeSortingInformations($new->getName())));
                 if( isset($config_overrides) ){
                   $new->setConfig( $config );
                   if( isset($config['ignore']) ){
@@ -88,7 +125,7 @@ class Builder
 
             }
             else {
-                static::createContent($node, $path);
+                static::createContent($node, $file);
             }
         }
 
@@ -97,18 +134,20 @@ class Builder
 
     /**
      * @param Directory $parent
-     * @param string $path
+     * @param SplFileInfo $file
      * @return Content|Raw
      */
-    public static function createContent(Directory $parent, $path)
+    public static function createContent(Directory $parent, SplFileInfo $file)
     {
-        $name = DauxHelper::pathinfo($path)['filename'];
+        $name = static::getName($file->getPathname());
 
         $config = $parent->getConfig();
 
-        if (!in_array(pathinfo($path, PATHINFO_EXTENSION), $config['valid_content_extensions'])) {
-            $entry = new Raw($parent, static::removeSortingInformations(static::getFilename($path)), $path, filemtime($path));
-            $entry->setTitle(static::removeSortingInformations($name, ' '));
+        if (!in_array($file->getExtension(), $config['valid_content_extensions'])) {
+            $uri = static::removeSortingInformations($file->getFilename());
+
+            $entry = new Raw($parent, $uri, $file);
+            $entry->setTitle(str_replace('_', ' ', static::removeSortingInformations($name)));
             $entry->setName($name);
 
             return $entry;
@@ -119,7 +158,7 @@ class Builder
             $uri .= '.html';
         }
 
-        $entry = new Content($parent, $uri, $path, filemtime($path));
+        $entry = new Content($parent, $uri, $file);
 
         if ($entry->getUri() == $config['index_key']) {
             if ($parent instanceof Root) {
@@ -128,7 +167,7 @@ class Builder
                 $entry->setTitle($parent->getTitle());
             }
         } else {
-            $entry->setTitle(static::removeSortingInformations($name, ' '));
+            $entry->setTitle(str_replace('_', ' ', static::removeSortingInformations($name)));
         }
 
         $entry->setName($name);
@@ -137,32 +176,17 @@ class Builder
     }
 
     /**
-     * @param string $file
-     * @return string
-     */
-    protected static function getFilename($file)
-    {
-        $parts = explode('/', $file);
-        return end($parts);
-    }
-
-    /**
      * @param string $filename
      * @return string
      */
-    protected static function removeSortingInformations($filename, $separator = '_')
+    public static function removeSortingInformations($filename)
     {
-        $filename = explode('_', $filename);
-        if ($filename[0] == '' || is_numeric($filename[0])) {
-            unset($filename[0]);
-        } else {
-            $t = $filename[0];
-            if ($t[0] == '-') {
-                $filename[0] = substr($t, 1);
-            }
-        }
-        $filename = implode($separator, $filename);
-        return $filename;
+        preg_match("/^-?[0-9]*_?(.*)/", $filename, $matches);
+
+        // Remove the numeric part
+        // of the filename, only if
+        // there is something after
+        return empty($matches[1])? $matches[0] : $matches[1];
     }
 
     /**
@@ -191,10 +215,10 @@ class Builder
      */
     public static function getOrCreatePage(Directory $parent, $path)
     {
-        $title = DauxHelper::pathinfo($path)['filename'];
+        $title = static::getName($path);
 
         // If the file doesn't have an extension, set .md as a default
-        if (DauxHelper::pathinfo($path)['extension'] == '') {
+        if (pathinfo($path, PATHINFO_EXTENSION) == '') {
             $path .= '.md';
         }
 
@@ -212,7 +236,7 @@ class Builder
 
         if ($title == 'index') {
             // TODO :: clarify the difference between 'index' and '_index'
-            $page->setName('_index' . DauxHelper::pathinfo($path)['extension']);
+            $page->setName('_index' . pathinfo($path, PATHINFO_EXTENSION));
             $page->setTitle($parent->getTitle());
         } else {
             $page->setName($path);

@@ -22,6 +22,7 @@ class Server
     public static function serve()
     {
         $daux = new Daux(Daux::LIVE_MODE);
+        $daux->setThemesPath($daux->getParams()['themes_directory']);
         $daux->setDocumentationPath($daux->getParams()['docs_directory']);
         $daux->initializeConfiguration();
 
@@ -36,7 +37,6 @@ class Server
 
         // Improve the tree with a processor
         $daux->generateTree();
-        $daux->getProcessor()->manipulateTree($daux->tree);
 
         $server = new static($daux);
 
@@ -70,7 +70,11 @@ class Server
         $this->daux = $daux;
 
         $this->host = $_SERVER['HTTP_HOST'];
-        $this->base_url = $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']);
+
+        // The path has a special treatment on windows, revert the slashes
+        $dir = dirname($_SERVER['PHP_SELF']);
+        $this->base_url = $_SERVER['HTTP_HOST'] . (DIRECTORY_SEPARATOR == "\\"? str_replace("\\", "/", $dir) : $dir);
+
         $t = strrpos($this->base_url, '/index.php');
         if ($t != false) {
             $this->base_url = substr($this->base_url, 0, $t);

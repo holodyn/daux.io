@@ -33,13 +33,13 @@ class Generate extends SymfonyCommand
 
         // Generate the tree
         $daux->generateTree();
-        $daux->getProcessor()->manipulateTree($daux->tree);
 
         // Generate the documentation
         $daux->getGenerator()->generateAll($input, $output, $width);
     }
 
-    protected function prepareDaux(InputInterface $input) {
+    protected function prepareDaux(InputInterface $input)
+    {
         $daux = new Daux(Daux::STATIC_MODE);
 
         // Set the format if requested
@@ -53,6 +53,8 @@ class Generate extends SymfonyCommand
         }
 
         $daux->setDocumentationPath($daux->getParams()['docs_directory']);
+
+        $daux->setThemesPath($daux->getParams()['themes_directory']);
 
         $daux->initializeConfiguration($input->getOption('configuration'));
 

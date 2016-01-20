@@ -23,16 +23,37 @@ class DauxHelper
         $config['image'] = str_replace('<base_url>', $base_url, $config['image']);
     }
 
+    public static function resolveVariant(Config $params)
+    {
+        if (array_key_exists('theme-variant', $params['html'])) {
+            return;
+        }
+
+        if (is_dir($params['themes_path'] . DIRECTORY_SEPARATOR . $params['html']['theme'])) {
+            return;
+        }
+
+        $theme = explode('-', $params['html']['theme']);
+
+        $params['html']['theme-variant'] = array_pop($theme);
+        $params['html']['theme'] = implode('-', $theme);
+
+        if (!is_dir($params['themes_path'] . DIRECTORY_SEPARATOR . $params['html']['theme'])) {
+            throw new \RuntimeException("Theme '{$params['html']['theme']}' not found");
+        }
+    }
+
     /**
      * @param Config $params
      * @param string $current_url
      * @return array
      */
-    public static function getTheme($params, $current_url)
+    public static function getTheme(Config $params, $current_url)
     {
-        $theme_folder = $params['local_base'] . DIRECTORY_SEPARATOR . 'resources' .
-            DIRECTORY_SEPARATOR . 'themes' . DIRECTORY_SEPARATOR . $params['html']['theme'];
-        $theme_url = $params['base_url'] . "resources/themes/" . $params['html']['theme'] . '/';
+        self::resolveVariant($params);
+
+        $theme_folder = $params['themes_path'] . DIRECTORY_SEPARATOR . $params['html']['theme'];
+        $theme_url = $params['base_url'] . $params['themes_directory'] . '/' . $params['html']['theme'] . '/';
 
         $theme = array();
         if (is_file($theme_folder . DIRECTORY_SEPARATOR . "config.json")) {
@@ -48,11 +69,31 @@ class DauxHelper
             'css' => [],
             'js' => [],
             'fonts' => [],
-            'require-jquery' => false,
-            'bootstrap-js' => false,
-            'favicon' => '<base_url>resources/img/favicon.png',
+            'favicon' => '<base_url>themes/daux/img/favicon.png',
             'templates' => $theme_folder . DIRECTORY_SEPARATOR . 'templates',
+            'variants' => [],
         ];
+
+        if (array_key_exists('theme-variant', $params['html'])) {
+            $variant = $params['html']['theme-variant'];
+            if (!array_key_exists($variant, $theme['variants'])) {
+                throw new Exception("Variant '$variant' not found for theme '$theme[name]'");
+            }
+
+            // These will be replaced
+            foreach (['templates', 'favicon'] as $element) {
+                if (array_key_exists($element, $theme['variants'][$variant])) {
+                    $theme[$element] = $theme['variants'][$variant][$element];
+                }
+            }
+
+            // These will be merged
+            foreach (['css', 'js', 'fonts'] as $element) {
+                if (array_key_exists($element, $theme['variants'][$variant])) {
+                    $theme[$element] = array_merge($theme[$element], $theme['variants'][$variant][$element]);
+                }
+            }
+        }
 
         $substitutions = [
             '<local_base>' => $params['local_base'],
@@ -93,24 +134,6 @@ class DauxHelper
             }
         }
         return implode(DIRECTORY_SEPARATOR, $absolutes);
-    }
-
-    /**
-     * Get pathinfo for a file
-     *
-     * @param string $path
-     * @return array
-     */
-    public static function pathinfo($path)
-    {
-        preg_match('%^(.*?)[\\\\/]*(([^/\\\\]*?)(\.([^\.\\\\/]+?)|))[\\\\/\.]*$%im', $path, $m);
-        $ret = [];
-        foreach (['dir' => 1, 'basename' => 2, 'filename' => 3, 'extension' => 5] as $key => $group) {
-            if (isset($m[$group])) {
-                $ret[$key] = $m[$group];
-            }
-        }
-        return $ret;
     }
 
     /**
