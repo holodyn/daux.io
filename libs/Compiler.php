@@ -61,6 +61,7 @@ class Compiler
             ->in(__DIR__ . '/../vendor/league/commonmark/src/')
             ->in(__DIR__ . '/../vendor/league/plates/src/')
             ->in(__DIR__ . '/../vendor/react/promise/src/')
+            ->in(__DIR__ . '/../vendor/webuddhainc/commonmark-code-extension/src/')
             ->in(__DIR__ . '/../vendor/webuni/commonmark-table-extension/src/');
 
         foreach ($finder as $file) {
