@@ -11,6 +11,20 @@
             "homepage": "http://todaymade.com/"
         }
     ],
+    "repositories": {
+        "commonmark-code-extension": {
+            "type": "package",
+            "package": {
+                "name": "webuddhainc/commonmark-code-extension",
+                "version": "1.0",
+                "source": {
+                    "url": "https://github.com/WebuddhaInc/CommonMark-Code-Extension.git",
+                    "type": "git",
+                    "reference": "origin/master"
+                }
+            }
+        }
+    },
     "require": {
         "php": ">=5.4",
         "league/plates": "~3.1",
@@ -18,10 +32,12 @@
         "league/commonmark": "^0.11",
         "symfony/console": "~2.7",
         "symfony/finder": "~2.7",
-        "webuni/commonmark-table-extension": "0.4.*"
+        "webuni/commonmark-table-extension": "0.4.*",
+        "webuddhainc/commonmark-code-extension": "*"
     },
     "autoload": {
         "psr-4": {
+            "WebuddhaInc\\CommonMark\\CodeExtension\\": "vendor/webuddhainc/commonmark-code-extension/src",
             "Todaymade\\Daux\\Extension\\": "daux/",
             "Todaymade\\Daux\\": "libs/"
         }
